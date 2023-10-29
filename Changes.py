@@ -6,7 +6,7 @@ from tracker import Tracker
 import numpy as np
 
 #setup video, cap_out, yolo and deepsort
-video_path = os.path.join('.', 'data', 'white jacket.mp4')
+video_path = os.path.join('.', 'data', 'coming.mp4')
 video_out_path = os.path.join('.', 'CCTV_out.mp4')
 
 cap = cv2.VideoCapture(video_path)
@@ -61,13 +61,10 @@ def peopleDetectionYOLO(frame, exitAreaVertices, exitDoorVertices):
     cv2.putText(frame, f"Workers through exit door: {human_door_count}", (5, 60), cv2.FONT_HERSHEY_TRIPLEX, 1, (255, 255, 255), 1)
     return detections
 
-
-# person_outgoing_count = 0
-# person_incoming_count = 0
-    
 #function for tracking people
 def peopleTrackingDeepSort(frame, detections, exitDoorVertices, exitAreaVertices):
-
+    # person_outgoing_count = 0
+    # person_incoming_count = 0
     tracker.update(frame, detections)
     for track in tracker.tracks:
 
@@ -81,11 +78,22 @@ def peopleTrackingDeepSort(frame, detections, exitDoorVertices, exitAreaVertices
         else:
             people_movement[track_id].append([x1, y1, x2, y2])
 
-        countOutgoing = countPersonOutgoing(exitDoorVertices, exitAreaVertices, track_id)
-        print(countOutgoing)
-        # print("Recieved output", countOutgoing, countIncoming)
-        countOutgoing = countOutgoing[0]
-        countIncoming = countOutgoing[1]
+        countOutgoing, countIncoming = countPersonOutgoing(exitDoorVertices, exitAreaVertices, track_id)
+        # person_outgoing_count += countOutgoing
+        # print("Outgoing", person_outgoing_count)
+        # person_incoming_count += countIncoming
+        # print("Incoming", person_incoming_count)
+        # print(outgoingIncoming)
+        # type(outgoingIncoming)
+        # type(outgoingIncoming[0])
+        # print(countOutgoing)
+        # print(countIncoming)
+        print("One output ", countOutgoing, " ", countIncoming) #this prints twice per frame
+        # print("Recieved output", countOutgoing)
+        # print("Recieved output", countIncoming)
+
+        # countOutgoing = outgoingIncoming[0]
+        # countIncoming = outgoingIncoming[1]
             # print(f"Person {track_id} is entering the exit area")
 
         #check why personexiting is not working
@@ -95,8 +103,8 @@ def peopleTrackingDeepSort(frame, detections, exitDoorVertices, exitAreaVertices
         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (255,255,255), 1)
         label = f"Staff Worker {track_id}"
         cv2.putText(frame, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
-        cv2.putText(frame, f"Workers outgoing: {countOutgoing}", (5, 95), cv2.FONT_HERSHEY_TRIPLEX, 1, (255, 255, 255), 1)
-        cv2.putText(frame, f"Workers incoming: {countIncoming}", (5, 130), cv2.FONT_HERSHEY_TRIPLEX, 1, (255, 255, 255), 1)
+        # cv2.putText(frame, f"Workers outgoing: {countOutgoing}", (5, 95), cv2.FONT_HERSHEY_TRIPLEX, 1, (255, 255, 255), 1)
+        # cv2.putText(frame, f"Workers incoming: {countIncoming}", (5, 130), cv2.FONT_HERSHEY_TRIPLEX, 1, (255, 255, 255), 1)
 
         
 # def isPersonEntering(exitDoorVertices, exitAreaVertices, track_id): #Check why this is not working, this works now, check why
@@ -139,9 +147,10 @@ def countPersonOutgoing(exitDoorVertices, exitAreaVertices, track_id): #Check wh
     last_coordinates = people_movement.get(track_id, [])[-10:]
     countOutgoing = 0
     countIncoming = 0
+    # type(countOutgoing)
     # Check if there are at least 2 coordinates to compare
     if len(last_coordinates) < 2:
-        return False
+        return countOutgoing, countIncoming
     # Calculate the feet coordinates for the last 10 coordinates
     feet_coordinates = []
     for coordinate in last_coordinates:
@@ -160,14 +169,14 @@ def countPersonOutgoing(exitDoorVertices, exitAreaVertices, track_id): #Check wh
     if cv2.pointPolygonTest(exitAreaVertices, feet_coordinates[-1], False) > 0 and people_last_10_steps_in_exit_door[track_id] == True:
         countOutgoing += 1
         print(f"Person {track_id} is OUTGOING from exit door")
-        print(countOutgoing)
+        # print(countOutgoing)
         # return countOutgoing
     elif cv2.pointPolygonTest(exitAreaVertices, feet_coordinates[-1], False) > 0 and people_last_10_steps_in_exit_door[track_id] == False:
         countIncoming += 1
         print(f"Person {track_id} is INCOMING to exit door")
-        print(countIncoming)
         # return countIncoming
-    return (countOutgoing, countIncoming)
+
+    return countOutgoing, countIncoming
 
 # def isPersonEntering(exitDoorVertices, exitAreaVertices, track_id): #Check why this is not working, this works now, check why
 #     # Get the last 10 coordinates of the person based on track
