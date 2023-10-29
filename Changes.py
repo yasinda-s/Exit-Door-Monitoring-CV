@@ -15,7 +15,7 @@ ret, frame = cap.read()
 cap_out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'mp4v'), cap.get(cv2.CAP_PROP_FPS),
                           (1280, 720))
 
-model = YOLO("yolov8n.pt") 
+model = YOLO("yolov8n-seg.pt") 
 tracker = Tracker()
 detection_threshold = 0.3
 people_movement = {} #dictionary for tracking people - use this to check if the person is incoming or outgoing the exit
@@ -39,7 +39,8 @@ def exitAreaROI():
 
 #function for detecting people (if feet within exit area)
 def peopleDetectionYOLO(frame, exitAreaVertices, exitDoorVertices):
-    results = model(frame)
+    # results = model(frame)
+    results = model.predict(frame, classes=0)
     detections = []
     human_area_count = 0
     human_door_count = 0
@@ -47,6 +48,7 @@ def peopleDetectionYOLO(frame, exitAreaVertices, exitDoorVertices):
     for result in results:
         for r in result.boxes.data.tolist():
             x1, y1, x2, y2, score, class_id = r #top left and bottom right coordinates of each object
+            print("Test", class_id)
             x1, x2, y1, y2 = int(x1), int(x2), int(y1), int(y2)
             class_id = int(class_id)
             if class_id==0 and score>=detection_threshold:
@@ -81,8 +83,8 @@ def peopleTrackingDeepSort(frame, detections, exitDoorVertices, exitAreaVertices
         totalOutgoing += countOutgoing
         totalIncoming += countIncoming
 
-        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 255), 1)
-        label = f"Staff Worker {track_id}"
+        # cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 255), 1)
+        label = f"Warehouse Worker: BD3{track_id}"
         cv2.putText(frame, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
 
