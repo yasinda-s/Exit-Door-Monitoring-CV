@@ -6,7 +6,7 @@ from tracker import Tracker
 import numpy as np
 
 #setup video, cap_out, yolo and deepsort
-video_path = os.path.join('.', 'data', 'CCTV_in.mp4')
+video_path = os.path.join('.', 'data', 'white jacket.mp4')
 video_out_path = os.path.join('.', 'CCTV_out.mp4')
 
 cap = cv2.VideoCapture(video_path)
@@ -15,10 +15,11 @@ ret, frame = cap.read()
 cap_out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'mp4v'), cap.get(cv2.CAP_PROP_FPS),
                           (1280, 720))
 
-model = YOLO("yolov8n.pt") 
+model = YOLO("yolov8m.pt") 
 tracker = Tracker()
 detection_threshold = 0.3
 people_movement = {} #dictionary for tracking people - use this to check if the person is incoming or outgoing the exit
+people_last_10_steps_in_exit_door = {} #dictionary for tracking people - use this to check if the person is incoming or outgoing the exit
 frame_count = 0
 
 #function for exit door
@@ -60,21 +61,32 @@ def peopleDetectionYOLO(frame, exitAreaVertices, exitDoorVertices):
     cv2.putText(frame, f"Workers through exit door: {human_door_count}", (5, 60), cv2.FONT_HERSHEY_TRIPLEX, 1, (255, 255, 255), 1)
     return detections
 
+
+# person_outgoing_count = 0
+# person_incoming_count = 0
+    
 #function for tracking people
 def peopleTrackingDeepSort(frame, detections, exitDoorVertices, exitAreaVertices):
+
     tracker.update(frame, detections)
     for track in tracker.tracks:
+
         bbox = track.bbox
         x1, y1, x2, y2 = bbox
         track_id = track.track_id
 
         if track_id not in people_movement:
             people_movement[track_id] = []
+            # people_last_10_steps_in_exit_door[track_id] = []
         else:
             people_movement[track_id].append([x1, y1, x2, y2])
 
-        if isPersonEntering(exitDoorVertices, exitAreaVertices, track_id):
-            print(f"Person {track_id} is entering the exit area")
+        countOutgoing = countPersonOutgoing(exitDoorVertices, exitAreaVertices, track_id)
+        print(countOutgoing)
+        # print("Recieved output", countOutgoing, countIncoming)
+        countOutgoing = countOutgoing[0]
+        countIncoming = countOutgoing[1]
+            # print(f"Person {track_id} is entering the exit area")
 
         #check why personexiting is not working
 
@@ -83,10 +95,50 @@ def peopleTrackingDeepSort(frame, detections, exitDoorVertices, exitAreaVertices
         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (255,255,255), 1)
         label = f"Staff Worker {track_id}"
         cv2.putText(frame, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+        cv2.putText(frame, f"Workers outgoing: {countOutgoing}", (5, 95), cv2.FONT_HERSHEY_TRIPLEX, 1, (255, 255, 255), 1)
+        cv2.putText(frame, f"Workers incoming: {countIncoming}", (5, 130), cv2.FONT_HERSHEY_TRIPLEX, 1, (255, 255, 255), 1)
+
         
-def isPersonEntering(exitDoorVertices, exitAreaVertices, track_id): #Check why this is not working, this works now, check why
-    # Get the last 10 coordinates of the person based on track
+# def isPersonEntering(exitDoorVertices, exitAreaVertices, track_id): #Check why this is not working, this works now, check why
+#     last_coordinates = people_movement.get(track_id, [])[-10:]
+#     if len(last_coordinates) < 2:
+#         return False
+#     feet_coordinates = {}
+
+#     for coordinate in last_coordinates:
+#         if track_id not in feet_coordinates:
+#             feet_coordinates[track_id] = []
+#         else:
+#             feet_coordinates[track_id].append(((coordinate[0] + coordinate[2]) / 2, coordinate[3] - 5))
+#             # feet_coordinates.append(((coordinate[0] + coordinate[2]) / 2, coordinate[3] - 5))
+
+#     if track_id not in people_last_10_steps_in_exit_door:
+#         people_last_10_steps_in_exit_door[track_id] = False
+#     else:
+#         for coordinate in feet_coordinates[track_id]:
+#             if cv2.pointPolygonTest(exitDoorVertices, coordinate, False) > 0:
+#                 people_last_10_steps_in_exit_door[track_id] = True
+
+#     # print(people_last_10_steps_in_exit_door)
+
+#     # if people_last_10_steps_in_exit_door[track_id] == True:
+#     #     print(f"Person {track_id} has history with exit door")
+
+#     # print(feet_coordinates)
+
+#     print(feet_coordinates)
+#     print(people_last_10_steps_in_exit_door)
+
+#     if cv2.pointPolygonTest(exitAreaVertices, feet_coordinates[-1], False) > 0 and people_last_10_steps_in_exit_door[track_id] == True:
+#         print(f"Person {track_id} is OUTGOING from exit door")
+#     elif cv2.pointPolygonTest(exitAreaVertices, feet_coordinates[-1], False) > 0 and people_last_10_steps_in_exit_door[track_id] == False:
+#         print(f"Person {track_id} is INCOMING to exit door")
+#         return True
+
+def countPersonOutgoing(exitDoorVertices, exitAreaVertices, track_id): #Check why this is not working, this works now, check why
     last_coordinates = people_movement.get(track_id, [])[-10:]
+    countOutgoing = 0
+    countIncoming = 0
     # Check if there are at least 2 coordinates to compare
     if len(last_coordinates) < 2:
         return False
@@ -95,11 +147,48 @@ def isPersonEntering(exitDoorVertices, exitAreaVertices, track_id): #Check why t
     for coordinate in last_coordinates:
         feet_coordinates.append(((coordinate[0] + coordinate[2]) / 2, coordinate[3] - 5))
 
-    if cv2.pointPolygonTest(exitAreaVertices, feet_coordinates[-1], False) > 0:
-        # Check if the person was outside of the exit door in the previous frame
-        if cv2.pointPolygonTest(exitDoorVertices, feet_coordinates[-2], False) < 0:
-            return True
-    return False
+    if track_id not in people_last_10_steps_in_exit_door:
+        people_last_10_steps_in_exit_door[track_id] = False
+    else:
+        for coordinate in feet_coordinates:
+            if cv2.pointPolygonTest(exitDoorVertices, coordinate, False) > 0:
+                people_last_10_steps_in_exit_door[track_id] = True
+
+    # print(feet_coordinates)
+    # print(people_last_10_steps_in_exit_door)
+
+    if cv2.pointPolygonTest(exitAreaVertices, feet_coordinates[-1], False) > 0 and people_last_10_steps_in_exit_door[track_id] == True:
+        countOutgoing += 1
+        print(f"Person {track_id} is OUTGOING from exit door")
+        print(countOutgoing)
+        # return countOutgoing
+    elif cv2.pointPolygonTest(exitAreaVertices, feet_coordinates[-1], False) > 0 and people_last_10_steps_in_exit_door[track_id] == False:
+        countIncoming += 1
+        print(f"Person {track_id} is INCOMING to exit door")
+        print(countIncoming)
+        # return countIncoming
+    return (countOutgoing, countIncoming)
+
+# def isPersonEntering(exitDoorVertices, exitAreaVertices, track_id): #Check why this is not working, this works now, check why
+#     # Get the last 10 coordinates of the person based on track
+#     last_coordinates = people_movement.get(track_id, [])[-10:]
+#     # Check if there are at least 2 coordinates to compare
+#     if len(last_coordinates) < 2:
+#         return False
+#     # Calculate the feet coordinates for the last 10 coordinates
+#     feet_coordinates = []
+#     for coordinate in last_coordinates:
+#         feet_coordinates.append(((coordinate[0] + coordinate[2]) / 2, coordinate[3] - 5))
+
+#     # print(track_id, " ", feet_coordinates) #this is working properly
+
+#     if cv2.pointPolygonTest(exitAreaVertices, feet_coordinates[-1], False) > 0:
+#         # print("Person is in exit area")
+#         # Check if the person was outside of the exit door in the previous frame
+#         if cv2.pointPolygonTest(exitDoorVertices, feet_coordinates[-2], False) > 0:
+#             # print("Person is outside exit door")
+#             return True
+#     return False
 
 # def isPersonExiting(exitDoorVertices, exitAreaVertices, track_id):
 #     # Get the last 10 coordinates of the person based on track
