@@ -26,26 +26,26 @@ unique_outgoing = []
 frame_count = 0
 
 #function for exit door
-def exitDoorROI(frame):
+def exitDoorROI(frame_copy):
     roi_vertices = np.array([[899, 100], [1051,141], [960,549], [863, 405]], np.int32)
     roi_x = 930
     roi_y = 110
-    # cv2.polylines(frame, [roi_vertices], True, (0, 0, 255), 1)
-    cv2.putText(frame, "Exit Door", (roi_x, roi_y - 10), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255), 2)
+    cv2.polylines(frame_copy, [roi_vertices], True, (0, 0, 255), 2)
+    cv2.putText(frame_copy, "Exit Door", (roi_x, roi_y - 10), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255), 2)
     # frame_count += 1
     return roi_vertices
 
 #function for exit area ROI
-def exitAreaROI():
+def exitAreaROI(frame_copy):
     # roi_vertices = np.array([[899, 100], [1051,141], [952,553], [857, 404]], np.int32)
     # roi_vertices = np.array([[863, 405], [960,549], [606,598], [582, 420]], np.int32)
     # roi_vertices = np.array([[573, 400], [857,404], [952,553], [611, 659]], np.int32)
     roi_vertices = np.array([[580, 440], [857,404], [952,553], [611, 659]], np.int32)
-    # cv2.polylines(frame, [roi_vertices], True, (0, 0, 255), 1)
+    cv2.polylines(frame_copy, [roi_vertices], True, (0, 0, 255), 1)
     return roi_vertices
 
 #function for detecting people (if feet within exit area)
-def peopleDetectionYOLO(frame, exitAreaVertices, exitDoorVertices):
+def peopleDetectionYOLO(frame, frame_copy, exitAreaVertices, exitDoorVertices):
     # results = model(frame)
     results = model.predict(frame, classes=0)
     detections = []
@@ -65,12 +65,12 @@ def peopleDetectionYOLO(frame, exitAreaVertices, exitDoorVertices):
                         human_door_count += 1
                     detections.append([x1, y1, x2, y2, score])
 
-    cv2.putText(frame, f"Workers currently in exit area: {human_area_count}", (5, 405), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1)
-    cv2.putText(frame, f"Workers currently in exit door: {human_door_count}", (5, 440), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1)
+    cv2.putText(frame, f"Workers currently in exit area: {human_area_count}", (15, 510), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1)
+    cv2.putText(frame, f"Workers currently in exit door: {human_door_count}", (15, 545), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1)
     return detections
 
 #function for tracking people
-def peopleTrackingDeepSort(frame, detections, exitDoorVertices, exitAreaVertices):
+def peopleTrackingDeepSort(frame, frame_copy, detections, exitDoorVertices, exitAreaVertices):
     tracker.update(frame, detections)
     totalOutgoing = 0
     totalIncoming = 0
@@ -89,19 +89,19 @@ def peopleTrackingDeepSort(frame, detections, exitDoorVertices, exitAreaVertices
             people_movement[track_id].append([x1, y1, x2, y2])
 
         countOutgoing, countIncoming = countPersonOutgoing(exitDoorVertices, exitAreaVertices, track_id)
-        totalOutgoing += countOutgoing
-        totalIncoming += countIncoming
+        totalOutgoing += countIncoming
+        totalIncoming += countOutgoing
         # len_outgoing += len_outgoingfunc
         # len_incoming += len_incomingfunc
 
         # cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 255), 1)
         label = f"WH3{track_id}"
-        cv2.putText(frame, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        cv2.putText(frame_copy, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    cv2.putText(frame, f"Workers currently outgoing: {totalOutgoing}", (5, 475), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1)
-    cv2.putText(frame, f"Workers currently incoming: {totalIncoming}", (5, 510), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1)
-    cv2.putText(frame, f"Record of outgoing workers: {len(unique_outgoing)}", (5, 545), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
-    cv2.putText(frame, f"Record of incoming workers: {len(unique_incoming)}", (5, 580), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
+    cv2.putText(frame, f"Workers currently outgoing: {totalIncoming}", (15, 580), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1)
+    cv2.putText(frame, f"Workers currently incoming: {totalOutgoing}", (15, 615), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1)
+    cv2.putText(frame, f"Record of outgoing workers: {len(unique_incoming)}", (15, 650), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
+    cv2.putText(frame, f"Record of incoming workers: {len(unique_outgoing)}", (15, 685), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
 
 def countPersonOutgoing(exitDoorVertices, exitAreaVertices, track_id):
     print("EXIT AREA HISTORY ", people_last_10_steps_in_exit_area)
@@ -152,19 +152,23 @@ def countPersonOutgoing(exitDoorVertices, exitAreaVertices, track_id):
 # main loop for processing
 while ret:
     frame = cv2.resize(frame, (1280, 720))
+    frame_copy = frame.copy()
     frame_count += 1
     print("Frame Count - ", frame_count)
-    cv2.rectangle(frame, (5, 380), (540, 595), (0, 0, 0), -1)
-    exitDoorVertices = exitDoorROI(frame)
-    exitAreaVertices = exitAreaROI()
-    detections = peopleDetectionYOLO(frame, exitAreaVertices, exitDoorVertices)
-    peopleTrackingDeepSort(frame, detections, exitDoorVertices, exitAreaVertices)
+    cv2.rectangle(frame, (13, 477), (550, 700), (0, 0, 0), -1)
+    exitDoorVertices = exitDoorROI(frame_copy)
+    exitAreaVertices = exitAreaROI(frame_copy)
+    detections = peopleDetectionYOLO(frame, frame_copy, exitAreaVertices, exitDoorVertices)
+    peopleTrackingDeepSort(frame, frame_copy, detections, exitDoorVertices, exitAreaVertices)
+
+    alpha = 0.6
+    overlapped_frame = cv2.addWeighted(frame, alpha, frame_copy, 1 - alpha, 0)
     
-    cv2.imshow('Video', frame)
+    cv2.imshow('Video', overlapped_frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-    cap_out.write(frame)
+    cap_out.write(overlapped_frame)
     ret, frame = cap.read()
 
 print(f"Unique outgoing: {unique_outgoing}")
