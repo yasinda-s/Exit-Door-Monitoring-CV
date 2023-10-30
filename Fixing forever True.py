@@ -1,3 +1,4 @@
+#Flipped the incoming and outgoing for this.
 #sets a virtually accurate ROI for the exit area AND door and counts the number of people within the region
 import os
 import cv2
@@ -163,6 +164,7 @@ while ret:
 
     alpha = 0.6
     overlapped_frame = cv2.addWeighted(frame, alpha, frame_copy, 1 - alpha, 0)
+    # overlapped_frame = cv2.add(frame, frame_copy) // 2
     
     cv2.imshow('Video', overlapped_frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
